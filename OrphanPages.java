@@ -27,6 +27,7 @@ public class OrphanPages extends Configured implements Tool {
     @Override
     public int run(String[] args) throws Exception {
         //TODO
+        return 0;
     }
 
     public static class LinkCountMap extends Mapper<Object, Text, IntWritable, IntWritable> {

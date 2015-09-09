@@ -1,3 +1,4 @@
+import com.google.common.collect.Iterables;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -14,13 +15,12 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
+import sun.awt.image.IntegerInterleavedRaster;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
-import java.util.List;
-import java.util.StringTokenizer;
+import java.util.*;
 
 // >>> Don't Change
 public class TitleCount extends Configured implements Tool {
@@ -48,7 +48,7 @@ public class TitleCount extends Configured implements Tool {
         return job.waitForCompletion(true) ? 0 : 1;
     }
 
-    public static String readHDFSFile(String path, Configuration conf) throws IOException{
+    public static String readHDFSFile(String path, Configuration conf) throws IOException {
         Path pt=new Path(path);
         FileSystem fs = FileSystem.get(pt.toUri(), conf);
         FSDataInputStream file = fs.open(pt);
@@ -81,17 +81,39 @@ public class TitleCount extends Configured implements Tool {
             this.delimiters = readHDFSFile(delimitersPath, conf);
         }
 
-
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            // TODO
+            Set<Map.Entry<String, Integer>> wordCountSet = calculateWordCountMap(value.toString()).entrySet();
+            for (Map.Entry<String, Integer> wordCount: wordCountSet) {
+                context.write(new Text(wordCount.getKey()), new IntWritable(wordCount.getValue()));
+            }
         }
+
+        private Map<String, Integer> calculateWordCountMap(String sentence) {
+            Set<String> stopWordSet = new HashSet<>(this.stopWords);
+            Map<String, Integer> ret = new HashMap<>();
+            StringTokenizer tokenizer = new StringTokenizer(sentence, this.delimiters);
+            while (tokenizer.hasMoreTokens()) {
+                String candidate = tokenizer.nextToken().toLowerCase();
+                if (!stopWordSet.contains(candidate)) {
+                    ret.put(candidate, ret.containsKey(candidate) ? ret.get(candidate) + 1 : 1);
+                }
+            }
+            return ret;
+        }
+
     }
 
     public static class TitleCountReduce extends Reducer<Text, IntWritable, Text, IntWritable> {
         @Override
-        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            // TODO
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException
+        {
+            Integer count = 0;
+            for (IntWritable value: values) {
+                count += value.get();
+            }
+            context.write(key, new IntWritable(count));
         }
     }
+
 }
