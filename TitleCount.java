@@ -1,4 +1,3 @@
-import com.google.common.collect.Iterables;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -15,7 +14,6 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
-import sun.awt.image.IntegerInterleavedRaster;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -94,7 +92,7 @@ public class TitleCount extends Configured implements Tool {
             Map<String, Integer> ret = new HashMap<>();
             StringTokenizer tokenizer = new StringTokenizer(sentence, this.delimiters);
             while (tokenizer.hasMoreTokens()) {
-                String candidate = tokenizer.nextToken().toLowerCase();
+                String candidate = tokenizer.nextToken().trim().toLowerCase();
                 if (!stopWordSet.contains(candidate)) {
                     ret.put(candidate, ret.containsKey(candidate) ? ret.get(candidate) + 1 : 1);
                 }
