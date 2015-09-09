@@ -23,10 +23,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.Integer;
-import java.util.Arrays;
-import java.util.List;
-import java.util.StringTokenizer;
-import java.util.TreeSet;
+import java.util.*;
 
 // Don't Change >>>
 public class TopTitleStatistics extends Configured implements Tool {
@@ -123,23 +120,42 @@ public class TopTitleStatistics extends Configured implements Tool {
             this.delimiters = readHDFSFile(delimitersPath, conf);
         }
 
-
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            // TODO
+            Set<Map.Entry<String, Integer>> wordCountSet = calculateTitleCountMap(value.toString()).entrySet();
+            for (Map.Entry<String, Integer> titleCount: wordCountSet) {
+                context.write(new Text(titleCount.getKey()), new IntWritable(titleCount.getValue()));
+            }
+        }
+
+        private Map<String, Integer> calculateTitleCountMap(String sentence) {
+            Set<String> stopWordSet = new HashSet<>(this.stopWords);
+            Map<String, Integer> ret = new HashMap<>();
+            StringTokenizer tokenizer = new StringTokenizer(sentence, this.delimiters);
+            while (tokenizer.hasMoreTokens()) {
+                String title = tokenizer.nextToken().trim().toLowerCase();
+                if (!stopWordSet.contains(title)) {
+                    ret.put(title, ret.containsKey(title) ? ret.get(title) + 1 : 1);
+                }
+            }
+            return ret;
         }
     }
 
     public static class TitleCountReduce extends Reducer<Text, IntWritable, Text, IntWritable> {
         @Override
         public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            // TODO
+            Integer count = 0;
+            for (IntWritable value : values) {
+                count += value.get();
+            }
+            context.write(key, new IntWritable(count));
         }
     }
 
     public static class TopTitlesStatMap extends Mapper<Text, Text, NullWritable, TextArrayWritable> {
-        Integer N;
-        // TODO
+        private Integer N;
+        private TreeSet<Pair<Integer, String>> countTitleMap = new TreeSet<>();
 
         @Override
         protected void setup(Context context) throws IOException,InterruptedException {
@@ -149,18 +165,25 @@ public class TopTitleStatistics extends Configured implements Tool {
 
         @Override
         public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
-            // TODO
+            String title = key.toString();
+            Integer count = Integer.parseInt(value.toString());
+            this.countTitleMap.add(new Pair<>(count, title));
+            if (this.countTitleMap.size() > this.N) {
+                this.countTitleMap.remove(this.countTitleMap.first());
+            }
         }
 
         @Override
         protected void cleanup(Context context) throws IOException, InterruptedException {
-            // TODO
+            for (Pair<Integer, String> countTitle: countTitleMap) {
+                String[] strings = {countTitle.second, countTitle.first.toString()};
+                context.write(NullWritable.get(), new TextArrayWritable(strings));
+            }
         }
     }
 
     public static class TopTitlesStatReduce extends Reducer<NullWritable, TextArrayWritable, Text, IntWritable> {
         Integer N;
-        // TODO
 
         @Override
         protected void setup(Context context) throws IOException,InterruptedException {
@@ -170,9 +193,29 @@ public class TopTitleStatistics extends Configured implements Tool {
 
         @Override
         public void reduce(NullWritable key, Iterable<TextArrayWritable> values, Context context) throws IOException, InterruptedException {
-            Integer sum, mean, max, min, var;
+            TreeSet<Pair<Integer, String>> countTitleMap = this.makeCountTitleMap(values);
 
-            // TODO
+            List<Integer> countList = new ArrayList<>();
+            for (Pair<Integer, String> countTitle: countTitleMap) {
+                countList.add(countTitle.first);
+            }
+
+            Integer sum = 0, mean, max = 0, min = Integer.MAX_VALUE, var, total = 0, totalDeviation = 0;
+
+            for (Integer count: countList) {
+                total += 1;
+                sum += count;
+                max = Math.max(max, count);
+                min = Math.min(min, count);
+            }
+
+            mean = (int) Math.floor(sum / total);
+
+            for (Integer count: countList) {
+                totalDeviation += (int) Math.pow(mean - count, 2);
+            }
+
+            var = totalDeviation / total;
 
             context.write(new Text("Mean"), new IntWritable(mean));
             context.write(new Text("Sum"), new IntWritable(sum));
@@ -180,6 +223,21 @@ public class TopTitleStatistics extends Configured implements Tool {
             context.write(new Text("Max"), new IntWritable(max));
             context.write(new Text("Var"), new IntWritable(var));
         }
+
+        private TreeSet<Pair<Integer, String>> makeCountTitleMap(Iterable<TextArrayWritable> values) {
+            TreeSet<Pair<Integer, String>> countTitleMap = new TreeSet<>();
+            for (TextArrayWritable titleCountTextArray: values) {
+                List<Text> titleCount = Arrays.asList((Text[]) titleCountTextArray.toArray());
+                String title = titleCount.get(0).toString();
+                Integer count = Integer.parseInt(titleCount.get(1).toString());
+                countTitleMap.add(new Pair<>(count, title));
+                if (countTitleMap.size() > this.N) {
+                    countTitleMap.remove(countTitleMap.first());
+                }
+            }
+            return countTitleMap;
+        }
+
     }
 
 }

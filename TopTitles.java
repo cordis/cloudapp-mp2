@@ -118,7 +118,6 @@ public class TopTitles extends Configured implements Tool {
             this.delimiters = readHDFSFile(delimitersPath, conf);
         }
 
-
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             Set<Map.Entry<String, Integer>> wordCountSet = calculateTitleCountMap(value.toString()).entrySet();
