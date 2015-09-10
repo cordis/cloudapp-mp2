@@ -1,3 +1,4 @@
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -20,6 +21,8 @@ import org.apache.hadoop.util.ToolRunner;
 
 import java.io.IOException;
 import java.lang.Integer;
+import java.util.Arrays;
+import java.util.List;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 
@@ -50,37 +53,125 @@ public class TopPopularLinks extends Configured implements Tool {
 
     @Override
     public int run(String[] args) throws Exception {
-        // TODO
+        Configuration conf = this.getConf();
+        FileSystem fs = FileSystem.get(conf);
+        Path tmpPath = new Path("/mp2/tmp");
+        fs.delete(tmpPath, true);
+
+        Job job1 = Job.getInstance(conf, "Link Count");
+        job1.setOutputKeyClass(IntWritable.class);
+        job1.setOutputValueClass(IntWritable.class);
+        job1.setMapperClass(LinkCountMap.class);
+        job1.setReducerClass(LinkCountReduce.class);
+
+        FileInputFormat.setInputPaths(job1, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job1, tmpPath);
+
+        job1.setJarByClass(OrphanPages.class);
+        if(!job1.waitForCompletion(true)) {
+            return 0;
+        }
+
+        Job job2 = Job.getInstance(conf, "Top Links");
+        job2.setOutputKeyClass(IntWritable.class);
+        job2.setOutputValueClass(IntWritable.class);
+        job2.setMapOutputKeyClass(NullWritable.class);
+        job2.setMapOutputValueClass(IntArrayWritable.class);
+        job2.setMapperClass(TopLinksMap.class);
+        job2.setReducerClass(TopLinksReduce.class);
+
+        FileInputFormat.setInputPaths(job2, tmpPath);
+        FileOutputFormat.setOutputPath(job2, new Path(args[1]));
+
+        job2.setInputFormatClass(KeyValueTextInputFormat.class);
+        job2.setOutputFormatClass(TextOutputFormat.class);
+
+        job2.setJarByClass(OrphanPages.class);
+        return job2.waitForCompletion(true) ? 0 : 1;
     }
 
     public static class LinkCountMap extends Mapper<Object, Text, IntWritable, IntWritable> {
-        // TODO
+        @Override
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            StringTokenizer recordTokenizer = new StringTokenizer(value.toString(), ":");
+            Integer nodeId = Integer.parseInt(recordTokenizer.nextToken().trim());
+            StringTokenizer linkListTokenizer = new StringTokenizer(recordTokenizer.nextToken(), " ");
+            while (linkListTokenizer.hasMoreTokens()) {
+                Integer linkId = Integer.parseInt(linkListTokenizer.nextToken());
+                context.write(new IntWritable(linkId), new IntWritable(nodeId));
+            }
+        }
     }
 
     public static class LinkCountReduce extends Reducer<IntWritable, IntWritable, IntWritable, IntWritable> {
-        // TODO
+        @Override
+        public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+            Integer linkCount = IteratorUtils.toList(values.iterator()).size();
+            if (linkCount > 0) {
+                context.write(key, new IntWritable(linkCount));
+            }
+        }
     }
 
     public static class TopLinksMap extends Mapper<Text, Text, NullWritable, IntArrayWritable> {
-        Integer N;
+        private Integer N;
+        private TreeSet<Pair<Integer, Integer>> countNodeIdMap = new TreeSet<>();
 
         @Override
         protected void setup(Context context) throws IOException,InterruptedException {
             Configuration conf = context.getConfiguration();
             this.N = conf.getInt("N", 10);
         }
-        // TODO
+
+        @Override
+        public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
+            Integer nodeId = Integer.parseInt(key.toString());
+            Integer count = Integer.parseInt(value.toString());
+            this.countNodeIdMap.add(new Pair<>(count, nodeId));
+            if (this.countNodeIdMap.size() > this.N) {
+                this.countNodeIdMap.remove(this.countNodeIdMap.first());
+            }
+        }
+
+        @Override
+        protected void cleanup(Context context) throws IOException, InterruptedException {
+            for (Pair<Integer, Integer> countNodeId: this.countNodeIdMap) {
+                Integer[] contNodeIdArray = {countNodeId.second, countNodeId.first};
+                context.write(NullWritable.get(), new IntArrayWritable(contNodeIdArray));
+            }
+        }
+
     }
 
     public static class TopLinksReduce extends Reducer<NullWritable, IntArrayWritable, IntWritable, IntWritable> {
-        Integer N;
+        private Integer N;
 
         @Override
         protected void setup(Context context) throws IOException,InterruptedException {
             Configuration conf = context.getConfiguration();
             this.N = conf.getInt("N", 10);
         }
-        // TODO
+
+        @Override
+        public void reduce(NullWritable key, Iterable<IntArrayWritable> values, Context context) throws IOException, InterruptedException {
+            TreeSet<Pair<Integer, Integer>> countNodeMap = this.makeCountNodeMap(values);
+            for (Pair<Integer, Integer> countNode: countNodeMap) {
+                context.write(new IntWritable(countNode.second), new IntWritable(countNode.first));
+            }
+        }
+
+        private TreeSet<Pair<Integer, Integer>> makeCountNodeMap(Iterable<IntArrayWritable> values) {
+            TreeSet<Pair<Integer, Integer>> countNodeMap = new TreeSet<>();
+            for (IntArrayWritable nodeCountTextArray: values) {
+                List<Integer> nodeCount = Arrays.asList((Integer[]) nodeCountTextArray.toArray());
+                countNodeMap.add(new Pair<>(nodeCount.get(1), nodeCount.get(0)));
+                if (countNodeMap.size() > this.N) {
+                    countNodeMap.remove(countNodeMap.first());
+                }
+            }
+            return countNodeMap;
+        }
+
     }
 }
 

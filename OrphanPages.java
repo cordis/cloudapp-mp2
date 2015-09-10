@@ -1,5 +1,7 @@
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.NullWritable;
@@ -26,21 +28,44 @@ public class OrphanPages extends Configured implements Tool {
 
     @Override
     public int run(String[] args) throws Exception {
-        //TODO
-        return 0;
+        Configuration conf = this.getConf();
+        FileSystem fs = FileSystem.get(conf);
+        Path tmpPath = new Path("/mp2/tmp");
+        fs.delete(tmpPath, true);
+
+        Job job = Job.getInstance(conf, "Link Count");
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(NullWritable.class);
+        job.setMapperClass(LinkCountMap.class);
+        job.setReducerClass(OrphanPageReduce.class);
+
+        FileInputFormat.setInputPaths(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, tmpPath);
+
+        job.setJarByClass(OrphanPages.class);
+
+        return job.waitForCompletion(true) ? 0 : 1;
     }
 
     public static class LinkCountMap extends Mapper<Object, Text, IntWritable, IntWritable> {
         @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            //TODO
+            StringTokenizer recordTokenizer = new StringTokenizer(value.toString(), ":");
+            Integer nodeId = Integer.parseInt(recordTokenizer.nextToken().trim());
+            StringTokenizer linkListTokenizer = new StringTokenizer(recordTokenizer.nextToken(), " ");
+            while (linkListTokenizer.hasMoreTokens()) {
+                Integer linkId = Integer.parseInt(linkListTokenizer.nextToken());
+                context.write(new IntWritable(linkId), new IntWritable(nodeId));
+            }
         }
     }
 
     public static class OrphanPageReduce extends Reducer<IntWritable, IntWritable, IntWritable, NullWritable> {
         @Override
         public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            //TODO
+            if (IteratorUtils.toList(values.iterator()).size() == 0) {
+                context.write(key, NullWritable.get());
+            }
         }
     }
 }
