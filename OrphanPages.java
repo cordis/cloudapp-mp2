@@ -34,10 +34,13 @@ public class OrphanPages extends Configured implements Tool {
         fs.delete(tmpPath, true);
 
         Job job = Job.getInstance(conf, "Link Count");
+        job.setMapperClass(LinkCountMap.class);
+        job.setMapOutputKeyClass(IntWritable.class);
+        job.setMapOutputValueClass(IntWritable.class);
+
+        job.setReducerClass(OrphanPageReduce.class);
         job.setOutputKeyClass(IntWritable.class);
         job.setOutputValueClass(NullWritable.class);
-        job.setMapperClass(LinkCountMap.class);
-        job.setReducerClass(OrphanPageReduce.class);
 
         FileInputFormat.setInputPaths(job, new Path(args[0]));
         FileOutputFormat.setOutputPath(job, tmpPath);
