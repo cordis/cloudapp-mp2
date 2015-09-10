@@ -37,34 +37,50 @@ public class PopularityLeague extends Configured implements Tool {
         Path tmpPath = new Path("/mp2/tmp");
         fs.delete(tmpPath, true);
 
-        Job job1 = Job.getInstance(conf, "Link Count");
-        job1.setOutputKeyClass(IntWritable.class);
-        job1.setOutputValueClass(IntWritable.class);
-        job1.setMapperClass(LinkCountMap.class);
-        job1.setReducerClass(LinkCountReduce.class);
-
-        FileInputFormat.setInputPaths(job1, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job1, tmpPath);
-
-        job1.setJarByClass(PopularityLeague.class);
+        Job job1 = this.makeLinkCountJob(conf, new Path(args[0]), tmpPath);
         job1.waitForCompletion(true);
 
-        Job job2 = Job.getInstance(conf, "Top Links");
-        job2.setOutputKeyClass(IntWritable.class);
-        job2.setOutputValueClass(IntWritable.class);
-        job2.setMapOutputKeyClass(NullWritable.class);
-        job2.setMapOutputValueClass(IntArrayWritable.class);
-        job2.setMapperClass(PopularityLeagueMapper.class);
-        job2.setReducerClass(PopularityLeagueReducer.class);
-
-        FileInputFormat.setInputPaths(job2, tmpPath);
-        FileOutputFormat.setOutputPath(job2, new Path(args[1]));
-
+        Job job2 = this.makeLeagueRankingJob(conf, tmpPath, new Path(args[1]));
         job2.setInputFormatClass(KeyValueTextInputFormat.class);
         job2.setOutputFormatClass(TextOutputFormat.class);
-
-        job2.setJarByClass(PopularityLeague.class);
         return job2.waitForCompletion(true) ? 0 : 1;
+    }
+
+    private Job makeLinkCountJob(Configuration conf, Path inputPath, Path outputPath) throws IOException {
+        Job job = Job.getInstance(conf, "Link Count");
+
+        job.setMapperClass(LinkCountMap.class);
+        job.setMapOutputKeyClass(IntWritable.class);
+        job.setMapOutputValueClass(IntWritable.class);
+
+        job.setReducerClass(LinkCountReduce.class);
+        job.setOutputKeyClass(IntWritable.class);
+        job.setOutputValueClass(IntWritable.class);
+
+        FileInputFormat.setInputPaths(job, inputPath);
+        FileOutputFormat.setOutputPath(job, outputPath);
+
+        job.setJarByClass(PopularityLeague.class);
+
+        return job;
+    }
+
+    private Job makeLeagueRankingJob(Configuration conf, Path inputPath, Path outputPath) throws IOException {
+        Job job = Job.getInstance(conf, "Rank Leagues");
+
+        job.setMapperClass(LeaguesRankerMapper.class);
+        job.setOutputKeyClass(IntWritable.class);
+        job.setOutputValueClass(IntWritable.class);
+
+        job.setReducerClass(LeaguesRankerReducer.class);
+        job.setMapOutputKeyClass(NullWritable.class);
+        job.setMapOutputValueClass(IntArrayWritable.class);
+
+        FileInputFormat.setInputPaths(job, inputPath);
+        FileOutputFormat.setOutputPath(job, outputPath);
+
+        job.setJarByClass(PopularityLeague.class);
+        return job;
     }
 
     public static class LinkCountMap extends Mapper<Object, Text, IntWritable, IntWritable> {
@@ -87,7 +103,7 @@ public class PopularityLeague extends Configured implements Tool {
         protected void setup(Reducer.Context context) throws IOException,InterruptedException {
             Configuration conf = context.getConfiguration();
             for (String leagueIdString: Arrays.asList(readHDFSFile(conf.get("league"), conf).split("\n"))) {
-                this.leagueIdSet.add(Integer.parseInt(leagueIdString));
+                this.leagueIdSet.add(Integer.parseInt(leagueIdString.trim()));
             }
         }
 
@@ -100,7 +116,7 @@ public class PopularityLeague extends Configured implements Tool {
         }
     }
 
-    public static class PopularityLeagueMapper extends Mapper<Text, Text, NullWritable, IntArrayWritable> {
+    public static class LeaguesRankerMapper extends Mapper<Text, Text, NullWritable, IntArrayWritable> {
         @Override
         public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
             Integer nodeId = Integer.parseInt(key.toString());
@@ -111,7 +127,7 @@ public class PopularityLeague extends Configured implements Tool {
 
     }
 
-    public static class PopularityLeagueReducer extends Reducer<NullWritable, IntArrayWritable, IntWritable, IntWritable> {
+    public static class LeaguesRankerReducer extends Reducer<NullWritable, IntArrayWritable, IntWritable, IntWritable> {
         @Override
         public void reduce(NullWritable key, Iterable<IntArrayWritable> values, Context context) throws IOException, InterruptedException {
             List<Integer> countList = this.makeCountList(values);
