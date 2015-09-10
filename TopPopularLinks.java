@@ -67,7 +67,7 @@ public class TopPopularLinks extends Configured implements Tool {
         FileInputFormat.setInputPaths(job1, new Path(args[0]));
         FileOutputFormat.setOutputPath(job1, tmpPath);
 
-        job1.setJarByClass(OrphanPages.class);
+        job1.setJarByClass(TopPopularLinks.class);
         if(!job1.waitForCompletion(true)) {
             return 0;
         }
@@ -86,7 +86,7 @@ public class TopPopularLinks extends Configured implements Tool {
         job2.setInputFormatClass(KeyValueTextInputFormat.class);
         job2.setOutputFormatClass(TextOutputFormat.class);
 
-        job2.setJarByClass(OrphanPages.class);
+        job2.setJarByClass(TopPopularLinks.class);
         return job2.waitForCompletion(true) ? 0 : 1;
     }
 
