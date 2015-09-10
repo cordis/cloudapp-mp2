@@ -118,9 +118,9 @@ public class PopularityLeague extends Configured implements Tool {
         public void reduce(NullWritable key, Iterable<IntArrayWritable> values, Context context) throws IOException, InterruptedException {
             List<Integer> countList = this.makeCountList(values);
             for (IntArrayWritable nodeIdCountIntArray: values) {
-                List<Integer> nodeIdCount = Arrays.asList((Integer[]) nodeIdCountIntArray.toArray());
-                Integer rank = countList.indexOf(nodeIdCount.get(1));
-                context.write(new IntWritable(nodeIdCount.get(0)), new IntWritable(rank));
+                List<IntWritable> nodeIdCount = Arrays.asList((IntWritable[]) nodeIdCountIntArray.toArray());
+                Integer rank = countList.indexOf(nodeIdCount.get(1).get());
+                context.write(new IntWritable(nodeIdCount.get(0).get()), new IntWritable(rank));
             }
         }
 

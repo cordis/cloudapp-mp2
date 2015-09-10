@@ -34,7 +34,7 @@ public class OrphanPages extends Configured implements Tool {
         fs.delete(tmpPath, true);
 
         Job job = Job.getInstance(conf, "Link Count");
-        job.setOutputKeyClass(Text.class);
+        job.setOutputKeyClass(IntWritable.class);
         job.setOutputValueClass(NullWritable.class);
         job.setMapperClass(LinkCountMap.class);
         job.setReducerClass(OrphanPageReduce.class);

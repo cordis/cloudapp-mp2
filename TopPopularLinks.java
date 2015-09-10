@@ -160,9 +160,9 @@ public class TopPopularLinks extends Configured implements Tool {
 
         private TreeSet<Pair<Integer, Integer>> makeCountNodeMap(Iterable<IntArrayWritable> values) {
             TreeSet<Pair<Integer, Integer>> countNodeMap = new TreeSet<>();
-            for (IntArrayWritable nodeCountTextArray: values) {
-                List<Integer> nodeCount = Arrays.asList((Integer[]) nodeCountTextArray.toArray());
-                countNodeMap.add(new Pair<>(nodeCount.get(1), nodeCount.get(0)));
+            for (IntArrayWritable nodeCountIntArray: values) {
+                List<IntWritable> nodeCount = Arrays.asList((IntWritable[]) nodeCountIntArray.toArray());
+                countNodeMap.add(new Pair<>(nodeCount.get(1).get(), nodeCount.get(0).get()));
                 if (countNodeMap.size() > this.N) {
                     countNodeMap.remove(countNodeMap.first());
                 }
