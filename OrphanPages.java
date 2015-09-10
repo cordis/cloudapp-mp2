@@ -29,9 +29,6 @@ public class OrphanPages extends Configured implements Tool {
     @Override
     public int run(String[] args) throws Exception {
         Configuration conf = this.getConf();
-        FileSystem fs = FileSystem.get(conf);
-        Path tmpPath = new Path("/mp2/tmp");
-        fs.delete(tmpPath, true);
 
         Job job = Job.getInstance(conf, "Link Count");
         job.setMapperClass(LinkCountMap.class);
@@ -43,7 +40,7 @@ public class OrphanPages extends Configured implements Tool {
         job.setOutputValueClass(NullWritable.class);
 
         FileInputFormat.setInputPaths(job, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job, tmpPath);
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
         job.setJarByClass(OrphanPages.class);
 
