@@ -1,3 +1,4 @@
+import com.google.common.collect.Lists;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
@@ -130,8 +131,9 @@ public class PopularityLeague extends Configured implements Tool {
     public static class LeaguesRankerReducer extends Reducer<NullWritable, IntArrayWritable, IntWritable, IntWritable> {
         @Override
         public void reduce(NullWritable key, Iterable<IntArrayWritable> values, Context context) throws IOException, InterruptedException {
-            List<Integer> countList = this.makeCountList(values);
-            for (IntArrayWritable nodeIdCountIntArray: values) {
+            List<IntArrayWritable> valueList = Lists.newArrayList(values);
+            List<Integer> countList = this.makeCountList(valueList);
+            for (IntArrayWritable nodeIdCountIntArray: valueList) {
                 List<IntWritable> nodeIdCount = Arrays.asList((IntWritable[]) nodeIdCountIntArray.toArray());
                 Integer rank = countList.indexOf(nodeIdCount.get(1).get());
                 context.write(new IntWritable(nodeIdCount.get(0).get()), new IntWritable(rank));
