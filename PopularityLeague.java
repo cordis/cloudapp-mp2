@@ -1,3 +1,4 @@
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -31,8 +32,138 @@ public class PopularityLeague extends Configured implements Tool {
 
     @Override
     public int run(String[] args) throws Exception {
-        // TODO
+        Configuration conf = this.getConf();
+        FileSystem fs = FileSystem.get(conf);
+        Path tmpPath = new Path("/mp2/tmp");
+        fs.delete(tmpPath, true);
+
+        Job job1 = Job.getInstance(conf, "Link Count");
+        job1.setOutputKeyClass(IntWritable.class);
+        job1.setOutputValueClass(IntWritable.class);
+        job1.setMapperClass(LinkCountMap.class);
+        job1.setReducerClass(LinkCountReduce.class);
+
+        FileInputFormat.setInputPaths(job1, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job1, tmpPath);
+
+        job1.setJarByClass(OrphanPages.class);
+        if(!job1.waitForCompletion(true)) {
+            return 0;
+        }
+
+        Job job2 = Job.getInstance(conf, "Top Links");
+        job2.setOutputKeyClass(IntWritable.class);
+        job2.setOutputValueClass(IntWritable.class);
+        job2.setMapOutputKeyClass(NullWritable.class);
+        job2.setMapOutputValueClass(IntArrayWritable.class);
+        job2.setMapperClass(PopularityLeagueMapper.class);
+        job2.setReducerClass(PopularityLeagueReducer.class);
+
+        FileInputFormat.setInputPaths(job2, tmpPath);
+        FileOutputFormat.setOutputPath(job2, new Path(args[1]));
+
+        job2.setInputFormatClass(KeyValueTextInputFormat.class);
+        job2.setOutputFormatClass(TextOutputFormat.class);
+
+        job2.setJarByClass(OrphanPages.class);
+        return job2.waitForCompletion(true) ? 0 : 1;
     }
 
-    // TODO
+    public static class LinkCountMap extends Mapper<Object, Text, IntWritable, IntWritable> {
+        @Override
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            StringTokenizer recordTokenizer = new StringTokenizer(value.toString(), ":");
+            Integer nodeId = Integer.parseInt(recordTokenizer.nextToken().trim());
+            StringTokenizer linkListTokenizer = new StringTokenizer(recordTokenizer.nextToken(), " ");
+            while (linkListTokenizer.hasMoreTokens()) {
+                Integer linkId = Integer.parseInt(linkListTokenizer.nextToken());
+                context.write(new IntWritable(linkId), new IntWritable(nodeId));
+            }
+        }
+    }
+
+    public static class LinkCountReduce extends Reducer<IntWritable, IntWritable, IntWritable, IntWritable> {
+        private Set<Integer> leagueIdSet = new HashSet<>();
+
+        @Override
+        protected void setup(Reducer.Context context) throws IOException,InterruptedException {
+            Configuration conf = context.getConfiguration();
+            for (String leagueIdString: Arrays.asList(readHDFSFile(conf.get("league"), conf).split("\n"))) {
+                this.leagueIdSet.add(Integer.parseInt(leagueIdString));
+            }
+        }
+
+        @Override
+        public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+            if (this.leagueIdSet.contains(key.get())) {
+                Integer linkCount = IteratorUtils.toList(values.iterator()).size();
+                context.write(key, new IntWritable(linkCount));
+            }
+        }
+    }
+
+    public static class PopularityLeagueMapper extends Mapper<Text, Text, NullWritable, IntArrayWritable> {
+        @Override
+        public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
+            Integer nodeId = Integer.parseInt(key.toString());
+            Integer count = Integer.parseInt(value.toString());
+            Integer[] contNodeIdArray = {nodeId, count};
+            context.write(NullWritable.get(), new IntArrayWritable(contNodeIdArray));
+        }
+
+    }
+
+    public static class PopularityLeagueReducer extends Reducer<NullWritable, IntArrayWritable, IntWritable, IntWritable> {
+        @Override
+        public void reduce(NullWritable key, Iterable<IntArrayWritable> values, Context context) throws IOException, InterruptedException {
+            List<Integer> countList = this.makeCountList(values);
+            for (IntArrayWritable nodeIdCountIntArray: values) {
+                List<Integer> nodeIdCount = Arrays.asList((Integer[]) nodeIdCountIntArray.toArray());
+                Integer rank = countList.indexOf(nodeIdCount.get(1));
+                context.write(new IntWritable(nodeIdCount.get(0)), new IntWritable(rank));
+            }
+        }
+
+        private List<Integer> makeCountList(Iterable<IntArrayWritable> values) {
+            Set<Integer> retSet = new HashSet<>();
+            for (IntArrayWritable nodeIdCountTextArray: values) {
+                List<Integer> nodeIdCount = Arrays.asList((Integer[]) nodeIdCountTextArray.toArray());
+                retSet.add(nodeIdCount.get(1));
+            }
+            List<Integer> ret = new ArrayList<>(retSet);
+            Collections.sort(ret, Collections.reverseOrder());
+            return ret;
+        }
+    }
+
+    private static String readHDFSFile(String path, Configuration conf) throws IOException {
+        Path pt = new Path(path);
+        FileSystem fs = FileSystem.get(pt.toUri(), conf);
+        FSDataInputStream file = fs.open(pt);
+        BufferedReader buffIn = new BufferedReader(new InputStreamReader(file));
+
+        StringBuilder everything = new StringBuilder();
+        String line;
+        while ((line = buffIn.readLine()) != null) {
+            everything.append(line);
+            everything.append("\n");
+        }
+        return everything.toString();
+    }
+
+    private static class IntArrayWritable extends ArrayWritable {
+        public IntArrayWritable() {
+            super(IntWritable.class);
+        }
+
+        public IntArrayWritable(Integer[] numbers) {
+            super(IntWritable.class);
+            IntWritable[] ints = new IntWritable[numbers.length];
+            for (int i = 0; i < numbers.length; i++) {
+                ints[i] = new IntWritable(numbers[i]);
+            }
+            set(ints);
+        }
+    }
+
 }

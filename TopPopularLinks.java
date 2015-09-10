@@ -107,9 +107,7 @@ public class TopPopularLinks extends Configured implements Tool {
         @Override
         public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
             Integer linkCount = IteratorUtils.toList(values.iterator()).size();
-            if (linkCount > 0) {
-                context.write(key, new IntWritable(linkCount));
-            }
+            context.write(key, new IntWritable(linkCount));
         }
     }
 
