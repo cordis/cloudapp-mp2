@@ -153,11 +153,10 @@ public class PopularityLeague extends Configured implements Tool {
         }
 
         private List<Integer> makeCountList(Iterable<List<Integer>> valueList) {
-            Set<Integer> retSet = new HashSet<>();
+            List<Integer> ret = new ArrayList<>();
             for (List<Integer> nodeIdCount: valueList) {
-                retSet.add(nodeIdCount.get(1));
+                ret.add(nodeIdCount.get(1));
             }
-            List<Integer> ret = new ArrayList<>(retSet);
             Collections.sort(ret);
             return ret;
         }
