@@ -90,9 +90,10 @@ public class PopularityLeague extends Configured implements Tool {
             StringTokenizer recordTokenizer = new StringTokenizer(value.toString(), ":");
             Integer nodeId = Integer.parseInt(recordTokenizer.nextToken().trim());
             StringTokenizer linkListTokenizer = new StringTokenizer(recordTokenizer.nextToken(), " ");
+            context.write(new IntWritable(nodeId), new IntWritable(0));
             while (linkListTokenizer.hasMoreTokens()) {
-                Integer linkId = Integer.parseInt(linkListTokenizer.nextToken());
-                context.write(new IntWritable(linkId), new IntWritable(nodeId));
+                Integer linkId = Integer.parseInt(linkListTokenizer.nextToken().trim());
+                context.write(new IntWritable(linkId), new IntWritable(1));
             }
         }
     }
@@ -110,10 +111,14 @@ public class PopularityLeague extends Configured implements Tool {
 
         @Override
         public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            if (this.leagueIdSet.contains(key.get())) {
-                Integer linkCount = IteratorUtils.toList(values.iterator()).size();
-                context.write(key, new IntWritable(linkCount));
+            if (!this.leagueIdSet.contains(key.get())) {
+                return;
             }
+            Integer linkCount = 0;
+            for (IntWritable link: values) {
+                linkCount += link.get();
+            }
+            context.write(key, new IntWritable(linkCount));
         }
     }
 
@@ -140,9 +145,9 @@ public class PopularityLeague extends Configured implements Tool {
             }
         }
 
-        private List<Integer> makeCountList(Iterable<IntArrayWritable> values) {
+        private List<Integer> makeCountList(Iterable<IntArrayWritable> valueList) {
             Set<Integer> retSet = new HashSet<>();
-            for (IntArrayWritable nodeIdCountIntArray: values) {
+            for (IntArrayWritable nodeIdCountIntArray: valueList) {
                 List<IntWritable> nodeIdCount = Arrays.asList((IntWritable[]) nodeIdCountIntArray.toArray());
                 retSet.add(nodeIdCount.get(1).get());
             }

@@ -1,3 +1,4 @@
+import com.google.common.collect.Lists;
 import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -106,7 +107,7 @@ public class TopPopularLinks extends Configured implements Tool {
     public static class LinkCountReduce extends Reducer<IntWritable, IntWritable, IntWritable, IntWritable> {
         @Override
         public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            Integer linkCount = IteratorUtils.toList(values.iterator()).size();
+            Integer linkCount = Lists.newArrayList(values).size();
             context.write(key, new IntWritable(linkCount));
         }
     }

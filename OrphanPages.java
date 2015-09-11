@@ -1,7 +1,6 @@
-import org.apache.commons.collections.IteratorUtils;
+import com.google.common.collect.Lists;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.NullWritable;
@@ -53,9 +52,10 @@ public class OrphanPages extends Configured implements Tool {
             StringTokenizer recordTokenizer = new StringTokenizer(value.toString(), ":");
             Integer nodeId = Integer.parseInt(recordTokenizer.nextToken().trim());
             StringTokenizer linkListTokenizer = new StringTokenizer(recordTokenizer.nextToken(), " ");
+            context.write(new IntWritable(nodeId), new IntWritable(0));
             while (linkListTokenizer.hasMoreTokens()) {
-                Integer linkId = Integer.parseInt(linkListTokenizer.nextToken());
-                context.write(new IntWritable(linkId), new IntWritable(nodeId));
+                Integer linkId = Integer.parseInt(linkListTokenizer.nextToken().trim());
+                context.write(new IntWritable(linkId), new IntWritable(1));
             }
         }
     }
@@ -63,9 +63,12 @@ public class OrphanPages extends Configured implements Tool {
     public static class OrphanPageReduce extends Reducer<IntWritable, IntWritable, IntWritable, NullWritable> {
         @Override
         public void reduce(IntWritable key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            if (IteratorUtils.toList(values.iterator()).size() == 0) {
-                context.write(key, NullWritable.get());
+            for (IntWritable linkCount: values) {
+                if (linkCount.get() > 0) {
+                    return;
+                }
             }
+            context.write(key, NullWritable.get());
         }
     }
 }
