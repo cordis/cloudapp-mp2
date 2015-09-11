@@ -126,8 +126,8 @@ public class PopularityLeague extends Configured implements Tool {
         public void map(Text key, Text value, Context context) throws IOException, InterruptedException {
             Integer nodeId = Integer.parseInt(key.toString());
             Integer count = Integer.parseInt(value.toString());
-            Integer[] contNodeIdArray = {nodeId, count};
-            context.write(NullWritable.get(), new IntArrayWritable(contNodeIdArray));
+            Integer[] nodeIdCountArray = {nodeId, count};
+            context.write(NullWritable.get(), new IntArrayWritable(nodeIdCountArray));
         }
 
     }
@@ -135,13 +135,21 @@ public class PopularityLeague extends Configured implements Tool {
     public static class LeaguesRankerReducer extends Reducer<NullWritable, IntArrayWritable, IntWritable, IntWritable> {
         @Override
         public void reduce(NullWritable key, Iterable<IntArrayWritable> values, Context context) throws IOException, InterruptedException {
-            List<IntArrayWritable> valueList = Lists.newArrayList(values);
+            List<IntArrayWritable> valueList = makeList(values);
             List<Integer> countList = this.makeCountList(valueList);
             for (IntArrayWritable nodeIdCountIntArray: valueList) {
                 List<IntWritable> nodeIdCount = Arrays.asList((IntWritable[]) nodeIdCountIntArray.toArray());
                 Integer rank = countList.indexOf(nodeIdCount.get(1).get());
                 context.write(nodeIdCount.get(0), new IntWritable(rank));
             }
+        }
+
+        public static <E> List<E> makeList(Iterable<E> iterable) {
+            List<E> list = new ArrayList<E>();
+            for (E item : iterable) {
+                list.add(item);
+            }
+            return list;
         }
 
         private List<Integer> makeCountList(Iterable<IntArrayWritable> valueList) {
