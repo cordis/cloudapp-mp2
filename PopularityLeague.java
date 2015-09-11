@@ -1,5 +1,4 @@
 import com.google.common.collect.Lists;
-import org.apache.commons.collections.IteratorUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -141,7 +140,7 @@ public class PopularityLeague extends Configured implements Tool {
             for (IntArrayWritable nodeIdCountIntArray: valueList) {
                 List<IntWritable> nodeIdCount = Arrays.asList((IntWritable[]) nodeIdCountIntArray.toArray());
                 Integer rank = countList.indexOf(nodeIdCount.get(1).get());
-                context.write(new IntWritable(nodeIdCount.get(0).get()), new IntWritable(rank));
+                context.write(nodeIdCount.get(0), new IntWritable(rank));
             }
         }
 
@@ -152,7 +151,7 @@ public class PopularityLeague extends Configured implements Tool {
                 retSet.add(nodeIdCount.get(1).get());
             }
             List<Integer> ret = new ArrayList<>(retSet);
-            Collections.sort(ret, Collections.reverseOrder());
+            Collections.sort(ret);
             return ret;
         }
     }
