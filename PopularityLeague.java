@@ -135,28 +135,27 @@ public class PopularityLeague extends Configured implements Tool {
     public static class LeaguesRankerReducer extends Reducer<NullWritable, IntArrayWritable, IntWritable, IntWritable> {
         @Override
         public void reduce(NullWritable key, Iterable<IntArrayWritable> values, Context context) throws IOException, InterruptedException {
-            List<IntArrayWritable> valueList = makeList(values);
+            List<List<Integer>> valueList = this.makeValueList(values);
             List<Integer> countList = this.makeCountList(valueList);
-            for (IntArrayWritable nodeIdCountIntArray: valueList) {
+            for (List<Integer> nodeIdCount: valueList) {
+                Integer rank = countList.indexOf(nodeIdCount.get(1));
+                context.write(new IntWritable(nodeIdCount.get(0)), new IntWritable(rank));
+            }
+        }
+
+        private List<List<Integer>> makeValueList(Iterable<IntArrayWritable> values) {
+            List<List<Integer>> ret = new ArrayList<>();
+            for (IntArrayWritable nodeIdCountIntArray: values) {
                 List<IntWritable> nodeIdCount = Arrays.asList((IntWritable[]) nodeIdCountIntArray.toArray());
-                Integer rank = countList.indexOf(nodeIdCount.get(1).get());
-                context.write(nodeIdCount.get(0), new IntWritable(rank));
+                ret.add(Arrays.asList(nodeIdCount.get(0).get(), nodeIdCount.get(1).get()));
             }
+            return ret;
         }
 
-        public static <E> List<E> makeList(Iterable<E> iterable) {
-            List<E> list = new ArrayList<E>();
-            for (E item : iterable) {
-                list.add(item);
-            }
-            return list;
-        }
-
-        private List<Integer> makeCountList(Iterable<IntArrayWritable> valueList) {
+        private List<Integer> makeCountList(Iterable<List<Integer>> valueList) {
             Set<Integer> retSet = new HashSet<>();
-            for (IntArrayWritable nodeIdCountIntArray: valueList) {
-                List<IntWritable> nodeIdCount = Arrays.asList((IntWritable[]) nodeIdCountIntArray.toArray());
-                retSet.add(nodeIdCount.get(1).get());
+            for (List<Integer> nodeIdCount: valueList) {
+                retSet.add(nodeIdCount.get(1));
             }
             List<Integer> ret = new ArrayList<>(retSet);
             Collections.sort(ret);
